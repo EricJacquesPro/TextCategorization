@@ -7,12 +7,9 @@
 SELECT p.body, p.title, p.tags, pty.Name 
 FROM Posts as p
 inner join PostTypes as pty ON pty.Id = p.PostTypeId
-/*inner join PostTags as pta on pta.PostId = p.id
-inner join Tags as t on t.id = pt.tagId*/
-WHERE p.Id < 50000
-AND pty.ID = 1
-AND Nullif(AcceptedAnswerId,'') is null
-AND DelationDate is null
-AND ClosedDate is null
-AND CommentCount > 0
-ORDER BY FavoriteCount
+WHERE pty.ID = 1
+AND p.AnswerCount > 0
+AND Nullif(p.AcceptedAnswerId,'') is null
+AND p.DeletionDate is null
+AND p.Tags is not null
+AND p.score > 0
