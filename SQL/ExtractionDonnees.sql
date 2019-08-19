@@ -20,19 +20,23 @@ SELECT p.body, p.title
 				FOR XML PATH('')
 		) AS SelectedTags
 		, pty.Name 
-FROM Posts as p
-inner join PostTypes as pty ON pty.Id = p.PostTypeId
+FROM Posts AS p
+inner join PostTypes AS pty ON pty.Id = p.PostTypeId
 inner join (
 	SELECT distinct PostId 
 	FROM PostTags
     INNER JOIN Best_Tags ON Best_Tags.Id = PostTags.TagId
-) as pt on pt.PostId = p.Id
-left join (SELECT distinct PostId FROM PendingFlags WHERE FlagTypeId = 14) as pf on pf.PostId = p.Id
+) AS pt ON pt.PostId = p.Id
+left join (
+    SELECT distinct PostId 
+    FROM PendingFlags 
+    WHERE FlagTypeId = 14--To exclude the poste closed
+) as pf on pf.PostId = p.Id
 WHERE pty.ID = 1
 AND p.AnswerCount > 0
-AND Nullif(p.AcceptedAnswerId,'') is null
+AND Nullif(p.AcceptedAnswerId,'') is not null
 AND p.DeletionDate is null
 AND p.Tags is not null
 AND pf.PostId is null
 AND p.score > 0
-ORDER BY p.score DESC
+ORDER BY p.score DESC, p.CreationDate DESC
