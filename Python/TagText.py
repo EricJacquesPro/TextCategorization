@@ -6,6 +6,7 @@ class TagText:
     import re                      # Regular expressions
     import sys
     
+
     from bs4 import BeautifulSoup
     from collections import defaultdict
     from nltk import sent_tokenize, word_tokenize
@@ -14,6 +15,7 @@ class TagText:
     from nltk.stem.snowball import SnowballStemmer
     from nltk.stem.wordnet import WordNetLemmatizer
     from nltk.tokenize import word_tokenize
+    from string import punctuation as ponctuation
 
     try:
         stopwords = set(stopwords.words('english'))
@@ -25,6 +27,9 @@ class TagText:
         stopwords = set(stopwords.words('english'))
     #stopwords
     
+    badwords = set(['i', 'is' '''
+        'the','are'
+    '''])
     
     urlDirectory = "Data/"
     fileName = 'QuestionVsTags.csv'
@@ -49,6 +54,22 @@ class TagText:
             )
         return df
     
+    def cleanIngred(self, s):
+        # remove leading and trailing whitespace
+        s = s.strip()
+        # remove unwanted words
+        '''
+        s = ' '.join(word for word in s.split() if not (word in self.badwords))
+        s = ' '.join(word for word in s.split() if not (word in self.stopwords))
+        '''
+        s = ' '.join(word for word in s.split() if not ((word in self.badwords) or (word in self.stopwords)))
+
+        punctuation = self.re.compile('[{}]+'.format(self.re.escape(self.ponctuation)))
+
+        s = punctuation.sub('', s)
+
+        return s
+
     def preprocessing(self, text):
         '''
         Function to prepare data before 
@@ -57,7 +78,9 @@ class TagText:
         clean_data = clean_data.lower()
         clean_data = self.BeautifulSoup(clean_data, 'html.parser').get_text()
         #clean_data = self.re.sub(r'[^\w\s]', '', clean_data) # remove punctuation
+        clean_data = self.cleanIngred(clean_data)
         return clean_data
+
 
     def manage_corpora(self, df_text):
         corpora = self.defaultdict(list)
@@ -69,9 +92,8 @@ class TagText:
             corpora[id] += tokenizer.tokenize(row)
         
         stats, freq = dict(), dict()
-        print(corpora)
         for k, v in corpora.iteritems():
-            freq[k] = fq = self.nltk.FreqDist(v)
+            freq[k] = self.nltk.FreqDist(v)
             stats[k] = {'total': len(v)} 
         return (freq, stats, corpora)
     
@@ -81,3 +103,19 @@ class TagText:
         freq, stats, corpora = self.manage_corpora(data_question)
         df = self.pd.DataFrame.from_dict(stats, orient='index')
         return df
+
+    def count_word_occurencies(self, df):
+        corpora = self.defaultdict(list)                
+        tokenizer = self.nltk.RegexpTokenizer(r'\w+')
+        for id, row in df.iteritems():
+            for word in tokenizer.tokenize(row):
+                if not word in corpora :
+                    corpora[word] = 0
+                #print(word)
+                corpora[word] += 1
+        corpora = dict((k, v) for k, v in corpora.items() if v > 1)        
+        return (sorted(corpora.items(), reverse=True,  key=lambda x: x[1]))
+
+    def unsupervised_tag(self, dict_word_key, new_question, number_max_tag):
+        tags = [word for word in new_question.split() if (word in dict_word_key)]
+        return tags[0:number_max_tag]
