@@ -1,4 +1,5 @@
 class TagText:
+    
     import nltk
     import numpy as np
     import os
@@ -6,17 +7,16 @@ class TagText:
     import re                      # Regular expressions
     import sys
     
-
     from bs4 import BeautifulSoup
     from collections import defaultdict
     from nltk import sent_tokenize, word_tokenize
-    from nltk.collocations import *
+    #from nltk.collocations import *
     from nltk.corpus import stopwords
     from nltk.stem.snowball import SnowballStemmer
     from nltk.stem.wordnet import WordNetLemmatizer
     from nltk.tokenize import word_tokenize
     from string import punctuation as ponctuation
-
+    
     try:
         stopwords = set(stopwords.words('english'))
     except LookupError:
@@ -27,13 +27,13 @@ class TagText:
         stopwords = set(stopwords.words('english'))
     #stopwords
     
-    badwords = set(['i', 'is' '''
-        'the','are'
-    '''])
-    
     urlDirectory = "Data/"
     fileName = 'QuestionVsTags.csv'
     
+    def __init__(self):
+        self.urlDirectory = "Data/"
+        self.fileName = 'QuestionVsTags.csv'
+        
     def test(self):
         '''
         Function to try this class
@@ -58,11 +58,8 @@ class TagText:
         # remove leading and trailing whitespace
         s = s.strip()
         # remove unwanted words
-        '''
-        s = ' '.join(word for word in s.split() if not (word in self.badwords))
         s = ' '.join(word for word in s.split() if not (word in self.stopwords))
-        '''
-        s = ' '.join(word for word in s.split() if not ((word in self.badwords) or (word in self.stopwords)))
+        #s = ' '.join(word for word in s.split() if not ((word in self.badwords) or (word in self.stopwords)))
 
         punctuation = self.re.compile('[{}]+'.format(self.re.escape(self.ponctuation)))
 
