@@ -17,8 +17,16 @@ class TagText:
     from nltk.stem.wordnet import WordNetLemmatizer
     from nltk.tokenize import word_tokenize
     from sklearn.decomposition import LatentDirichletAllocation, NMF
-    from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+    from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer, TfidfTransformer
     from string import punctuation as ponctuation
+
+    from sklearn.pipeline import Pipeline
+    from sklearn.svm import LinearSVC
+    from sklearn.multiclass import OneVsRestClassifier
+    from sklearn.tree import DecisionTreeClassifier
+    from sklearn.metrics import accuracy_score
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.preprocessing import MultiLabelBinarizer
 
     try:
         stopwords = set(stopwords.words('english'))
@@ -34,14 +42,16 @@ class TagText:
     fileName = 'QuestionVsTags.csv'
 
 
-    urlDirectoryLoad = 'Data/tag_text/V10/'
+    urlDirectoryLoad = '/home/ejacques/mysite/data/tag_text/V3k/'
     lda_filename = 'lda.joblib'
     lda_df_filename = 'lda_df_topic_keywords.joblib'
     lda_tf_filename = 'lda_tf_vectorizer.joblib'
     nmf_filename = 'nmf.joblib'
     nmf_df_filename = 'nmf_df_topic_keywords.joblib'
     nmf_tf_filename = 'nmf_tf_vectorizer.joblib'
-
+    supervised_classifier_filename = 'supervised_classifier.joblib'
+    supervised_classes_filename = 'supervised_classes.joblib'
+    precision = 4000
 
     def __init__(self):
         self.urlDirectory = "Data/"
@@ -63,7 +73,8 @@ class TagText:
                 self.urlDirectory+self.fileName,
                 header=0,
                 sep=',',
-                encoding='utf-8'
+                encoding='utf-8',
+                nrows=self.precision
             )
         return df
 
@@ -160,7 +171,7 @@ class TagText:
         #no_topics = 20
         no_components = 20
 
-        documents = data_preprocessed[0:9].unique()
+        documents = data_preprocessed[0:self.precision].unique()
 
         lda_tf_vectorizer = self.CountVectorizer(
             max_df=0.95,
@@ -171,8 +182,7 @@ class TagText:
         lda_tf = lda_tf_vectorizer.fit_transform(documents)
 
         # Run LDA
-        lda = self.LatentDirichletAllocation(n_topics=no_components,
-                                        #n_components =no_components,
+        lda = self.LatentDirichletAllocation(n_components =no_components, #n_topics=no_topics,
                                         max_iter=5,
                                         learning_method='online',
                                         learning_offset=50.,
@@ -183,8 +193,7 @@ class TagText:
         self.display_topics(lda, lda_tf_vectorizer.get_feature_names(), no_top_words)
         '''
 
-        #lda_topicnames = ["Topic" + str(i) for i in range(lda.n_components )]
-        lda_topicnames = ["Topic" + str(i) for i in range(lda.n_topics)]
+        lda_topicnames = ["Topic" + str(i) for i in range(lda.n_components )]#.n_topics)]
 
         # Topic-Keyword Matrix
         lda_df_topic_keywords = self.pd.DataFrame(lda.components_)
@@ -225,7 +234,7 @@ class TagText:
 
     def nmf_prepare_tag(self, data_preprocessed):
         #no_top_words = 5
-        X = data_preprocessed[0:9].unique()
+        X = data_preprocessed[0:self.precision].unique()
 
         # NMF is able to use tf-idf
         nmf_tfidf_vectorizer = self.TfidfVectorizer(
@@ -278,26 +287,217 @@ class TagText:
         return (" ".join([nmf_feature_names[i]
                         for i in nmf_topic_array.argsort()[:-no_top_words - 1:-1]]))
 
+
+    def supervised_define_words(self, data_preprocessed):
+        list_word = data_preprocessed[0:9].unique()
+        return list_word
+
+    def supervised_define_tags(self, data_preprocessed):
+        list_tag = data_preprocessed[0:9].unique()
+        return list_tag
+
+    def testRg(self):
+        X_train = self.np.array(["new york is a hell of a town",
+                        "new york was originally dutch",
+                        "the big apple is great",
+                        "new york is also called the big apple",
+                        "nyc is nice",
+                        "people abbreviate new york city as nyc",
+                        "the capital of great britain is london",
+                        "london is in the uk",
+                        "london is in england",
+                        "london is in great britain",
+                        "it rains a lot in london",
+                        "london hosts the british museum",
+                        "new york is great and so is london",
+                        "i like london better than new york",
+                        "france"])
+
+        '''
+        y_train_text = [["new york"],["new york"],["new york"],["new york"],
+                        ["new york"],["new york"],["london"],["london"],
+                        ["london"],["london"],["london"],["london"],
+                        ["new york","England"],["new york"],["France"]]
+        '''
+        y_train = ["new york","new york","new york","new york",
+                    "new york","new york","london","london",
+                    "london","london","london","london",
+                   "new york,England","new york","France"]
+        y_train_text = [item.split(',') for item in y_train]
+
+        #lb = self.MultiLabelBinarizer(classes=("new york","london","England","France"))
+        lb = self.MultiLabelBinarizer()
+        Y = lb.fit_transform(y_train_text)
+        print(Y)
+
+        forest = self.RandomForestClassifier(n_estimators=10, random_state=1)
+
+        classifier = self.Pipeline([
+        ('vectorizer', self.CountVectorizer()),
+        ('tfidf', self.TfidfTransformer()),
+        #('clf',  DecisionTreeClassifier(random_state=0))
+        ('clf', self.RandomForestClassifier(n_estimators=100, max_depth=2,random_state=0))
+        #('clf', OneVsRestClassifier(LinearSVC()))])
+        ])
+
+        classifier.fit(X_train, Y)
+        predicted = classifier.predict_proba(["new york is great and so is london"])
+        '''
+        print(predicted)
+        print([item[0][1] for item in predicted] )
+        '''
+        tempTag = [item[0][1] for item in predicted]
+        print(lb.classes_)
+        '''
+        print([i for i, x in enumerate(tempTag) if x > 0.050])
+        '''
+        list_id = [i for i, x in enumerate(tempTag) if x > 0.050]
+        '''
+        print([id for id in list_id])
+        '''
+        print([lb.classes_[id] for id in list_id])
+        #print("Accuracy Score: ",accuracy_score(Y_test, predicted))
+        return str([lb.classes_[id] for id in list_id])
+
+    def test_supervised_rg(self, data_tag, data_preprocessed):
+
+
+        X = [str(item) for item in data_preprocessed]
+        y_train_tag = [item[:-1].split(',') for item in data_tag]#-1 car il y a un , à la fin de la ligne
+        print(y_train_tag)
+
+        lb = self.MultiLabelBinarizer()
+        Y = lb.fit_transform(y_train_tag)#y_train_text
+        print(Y)
+
+        classifier = self.Pipeline([
+            ('vectorizer', self.CountVectorizer()),
+            ('tfidf', self.TfidfTransformer()),
+            ('clf', self.RandomForestClassifier(
+                    n_estimators=100,
+                    max_depth=2,
+                    random_state=0
+                )
+            )
+        ])
+
+        classifier.fit(X, Y)
+        predicted = classifier.predict_proba(["Git ist good"])
+
+        tempTag = [item[0][1] for item in predicted]
+        print(lb.classes_)
+        list_id = [i for i, x in enumerate(tempTag) if x > 0.050]
+        print([lb.classes_[id] for id in list_id])
+        return str([lb.classes_[id] for id in list_id])
+
+    def test2(self):
+        X_train = self.np.array(["new york is a hell of a town",
+                        "new york was originally dutch",
+                        "the big apple is great",
+                        "new york is also called the big apple",
+                        "nyc is nice",
+                        "people abbreviate new york city as nyc",
+                        "the capital of great britain is london",
+                        "london is in the uk",
+                        "london is in england",
+                        "london is in great britain",
+                        "it rains a lot in london",
+                        "london hosts the british museum",
+                        "new york is great and so is london",
+                        "i like london better than new york",
+                        "france"])
+
+        '''
+        y_train_text = [["new york"],["new york"],["new york"],["new york"],
+                        ["new york"],["new york"],["london"],["london"],
+                        ["london"],["london"],["london"],["london"],
+                        ["new york","England"],["new york"],["France"]]
+        '''
+        y_train = ["new york","new york","new york","new york",
+                    "new york","new york","london","london",
+                    "london","london","london","london",
+                   "new york,England","new york","France"]
+        y_train_text = [item.split(',') for item in y_train]
+
+        #lb = self.MultiLabelBinarizer(classes=("new york","london","England","France"))
+        lb = self.MultiLabelBinarizer()
+        Y = lb.fit_transform(y_train_text)
+        print(Y)
+
+        forest = self.RandomForestClassifier(n_estimators=10, random_state=1)
+
+        classifier = self.Pipeline([
+        ('vectorizer', self.CountVectorizer()),
+        ('tfidf', self.TfidfTransformer()),
+        #('clf',  DecisionTreeClassifier(random_state=0))
+        ('clf', self.RandomForestClassifier(n_estimators=100, max_depth=2,random_state=0))
+        #('clf', OneVsRestClassifier(LinearSVC()))])
+        ])
+
+        classifier.fit(X_train, Y)
+        predicted = classifier.predict_proba(["new york is great and so is london"])
+        '''
+        print(predicted)
+        print([item[0][1] for item in predicted] )
+        '''
+        tempTag = [item[0][1] for item in predicted]
+        print(lb.classes_)
+        '''
+        print([i for i, x in enumerate(tempTag) if x > 0.050])
+        '''
+        list_id = [i for i, x in enumerate(tempTag) if x > 0.050]
+        '''
+        print([id for id in list_id])
+        '''
+        print([lb.classes_[id] for id in list_id])
+        #print("Accuracy Score: ",accuracy_score(Y_test, predicted))
+        return 'finie'
+
     def supervised_prepare_tag_load(self):
-        supervised_rg = self.joblib.load('supervised_reg.joblib')
-        return supervised_rg
+        classifier = self.joblib.load(self.urlDirectoryLoad+self.supervised_classifier_filename)
+        classes = self.joblib.load(self.urlDirectoryLoad+self.supervised_classes_filename)
+        return classifier, classes
 
-    def supervised_prepare_tag(self, data_preprocessed):
-        supervised_rg = '?'
-        return supervised_rg
+    def supervised_prepare_tag(self, data_preprocessed, data_tag):
+        X = [str(item) for item in data_preprocessed]
+        y_train_tag = [item[:-1].split(',') for item in data_tag]#-1 car il y a un , à la fin de la ligne
+        print(y_train_tag)
 
-    def supervised_prepare_tag_and_save(self, data_preprocessed):
-        supervised_rg = self.supervised_prepare_tag(data_preprocessed)
-        self.supervised_save(supervised_rg)
-        return supervised_rg
+        lb = self.MultiLabelBinarizer()
+        Y = lb.fit_transform(y_train_tag)#y_train_text
+        print(Y)
 
-    def supervised_save(self, supervised_rg):
-        self.joblib.dump(supervised_rg, 'supervised_rg.joblib')
+        classifier = self.Pipeline([
+            ('vectorizer', self.CountVectorizer()),
+            ('tfidf', self.TfidfTransformer()),
+            ('clf', self.RandomForestClassifier(
+                    n_estimators=100,
+                    max_depth=2,
+                    random_state=0
+                )
+            )
+        ])
+
+        classifier.fit(X, Y)
+
+        return classifier, lb.classes_
+
+    def supervised_prepare_tag_and_save(self, data_preprocessed, data_tag):
+        classifier, classes = self.supervised_prepare_tag(data_preprocessed, data_tag)
+        self.supervised_save(classifier, classes)
+        return classifier, classes
+
+    def supervised_save(self, classifier, classes):
+        self.joblib.dump(classifier, self.urlDirectoryLoad+self.supervised_classifier_filename, 0)
+        self.joblib.dump(classes, self.urlDirectoryLoad+self.supervised_classes_filename, 0)
         return
 
-    def supervision_predict(self, text, supervised_rg):
-        text = [text]
-        X_test = '? f(text)'
-        tag = clf.predict_proba(X_test)
-        return '?'
+    def supervised_predict(self, text, classifier, classes):
+        predicted = classifier.predict_proba([text])
+
+        tempTag = [item[0][1] for item in predicted]
+        print(classes)
+        list_id = [i for i, x in enumerate(tempTag) if x > 0.050]
+        print([classes[id] for id in list_id])
+        return str([classes[id] for id in list_id])
 
