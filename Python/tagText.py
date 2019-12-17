@@ -116,9 +116,7 @@ class TagText:
 
     def manage_corpora(self, df_text):
         corpora = self.defaultdict(list)
-
         tokenizer = self.nltk.RegexpTokenizer(r'\w+')
-
         # create corpus
         for id, row in df_text.head().iteritems():
             corpora[id] += tokenizer.tokenize(row)
@@ -130,25 +128,28 @@ class TagText:
         return (freq, stats, corpora)
 
     def freq_stats_corpora(self, data_question):
-
-			   
         freq, stats, corpora = self.manage_corpora(data_question)
         df = self.pd.DataFrame.from_dict(stats, orient='index')
         return df
 
     def count_word_occurencies(self, df):
+        '''
+        make a dictionnary of words from dataframe and sort them by the number of occurences
+        '''
         corpora = self.defaultdict(list)
         tokenizer = self.nltk.RegexpTokenizer(r'\w+')
         for id, row in df.iteritems():
             for word in tokenizer.tokenize(row):
                 if word not in corpora:
                     corpora[word] = 0
-							
                 corpora[word] += 1
         corpora = dict((k, v) for k, v in corpora.items() if v > 1)
         return (sorted(corpora.items(), reverse=True,  key=lambda x: x[1]))
 
     def unsupervised_tag(self, dict_word_key, new_question, number_max_tag):
+        '''
+        find tag of message from dictionnary. The best words in dictionnary and in message 
+        '''
         tags = [
             word
             for word in new_question.split()
@@ -157,6 +158,9 @@ class TagText:
         return tags[0:number_max_tag]
 
     def display_topics(self, model, feature_names, no_top_words):
+        '''
+        display topic
+        '''
         for topic_idx, topic in enumerate(model.components_):
             print("Topic :", topic_idx, ":")
             print (
@@ -167,6 +171,9 @@ class TagText:
                 )
 
     def lda_load(self):
+        '''
+        Load lda from file
+        '''
         return self.urlDirectoryLoad+self.lda_filename
         lda = self.joblib.load(
             self.urlDirectoryLoad +
@@ -175,6 +182,9 @@ class TagText:
         return lda
 
     def lda_df_load(self):
+        '''
+        Load dataframe lda from file
+        '''
         lda_df_topic_keywords = self.joblib.load(
             self.urlDirectoryLoad +
             self.lda_df_filename
@@ -182,6 +192,9 @@ class TagText:
         return lda_df_topic_keywords
 
     def lda_tf_load(self):
+        '''
+        Load tf vectorize from file
+        '''
         lda_tf_vectorizer = self.joblib.load(
             self.urlDirectoryLoad +
             self.lda_tf_filename
@@ -189,6 +202,9 @@ class TagText:
         return lda_tf_vectorizer
 
     def lda_prepare_tag_load(self):
+        '''
+        load lda, topic ad tf vectorizer from file
+        '''
         lda = self.joblib.load(
             self.urlDirectoryLoad +
             self.lda_filename
@@ -204,6 +220,9 @@ class TagText:
         return lda, lda_df_topic_keywords, lda_tf_vectorizer
 
     def lda_prepare_tag(self, data_preprocessed):
+        '''
+        prepare lda, topic ad tf vectorizer from data preprocessed
+        '''
         no_components = 20
 
         documents = data_preprocessed[0:self.precision].unique()
@@ -235,6 +254,10 @@ class TagText:
         return lda, lda_df_topic_keywords, lda_tf_vectorizer
 
     def lda_prepare_tag_and_save(self, data_preprocessed):
+        '''
+        prepare lda, topic ad tf vectorizer from data preprocessed
+        and save them in file for future loading
+        '''
         lda, lda_df_topic_keywords, lda_tf_vectorizer = self.lda_prepare_tag(
             data_preprocessed
         )
@@ -242,6 +265,9 @@ class TagText:
         return lda, lda_df_topic_keywords, lda_tf_vectorizer
 
     def lda_save(self, lda, lda_df_topic_keywords, lda_tf_vectorizer):
+        '''
+        save lda, topic ad tf vectorizer in file for future loading
+        '''
         self.joblib.dump(
             lda,
             (
@@ -275,6 +301,9 @@ class TagText:
         lda_tf_vectorizer,
         no_top_words
     ):
+        '''
+        predict tag form text in function of lda, topic ad tf vectorizer
+        '''
         text = [text]
         mytext = lda_tf_vectorizer.transform(text)
         lda_topic_probability_scores = lda.transform(mytext)
@@ -297,6 +326,9 @@ class TagText:
         )
 
     def nmf_prepare_tag_load(self):
+        '''
+        load nmf, topic ad tf vectorizer from file
+        '''
         nmf = self.joblib.load(
             self.urlDirectoryLoad +
             self.nmf_filename
@@ -312,9 +344,10 @@ class TagText:
         return nmf, nmf_df_topic_keywords, nmf_tf_vectorizer
 
     def nmf_prepare_tag(self, data_preprocessed):
-												 
+        '''
+        prepare nmf, topic ad tf vectorizer from data preprocessed
+        '''
         X = data_preprocessed[0:self.precision].unique()
-														
         # NMF is able to use tf-idf
         nmf_tfidf_vectorizer = self.TfidfVectorizer(
             max_df=0.95,
@@ -323,10 +356,7 @@ class TagText:
             stop_words='english'
         )
         nmf_tfidf = nmf_tfidf_vectorizer.fit_transform(X)
-														 
-
         no_components = 5
-
         # Run NMF
         nmf = self.NMF(
             n_components=no_components,
@@ -347,6 +377,10 @@ class TagText:
         return nmf, nmf_df_topic_keyword, nmf_tfidf_vectorizer
 
     def nmf_prepare_tag_and_save(self, data_preprocessed):
+        '''
+        prepare nmf, topic ad tf vectorizer from data preprocessed
+        and save them in file for future loading
+        '''
         nmf, nmf_df_topic_keyword, nmf_tfidf_vectorizer = self.nmf_prepare_tag(
             data_preprocessed
         )
@@ -363,6 +397,10 @@ class TagText:
         nmf_df_topic_keywords,
         nmf_tfidf_vectorizer
     ):
+        '''
+        save lda, topic ad tf vectorizer 
+        in file for future loading
+        '''
         self.joblib.dump(
                 nmf,
                 (
@@ -396,6 +434,9 @@ class TagText:
         nmf_tfidf_vectorizer,
         no_top_words
     ):
+        '''
+        save nmf, topic ad tf vectorizer in file for future loading
+        '''
         text = [text]
         mytext = nmf_tfidf_vectorizer.transform(text)
         nmf_topic_probability_scores = nmf.transform(mytext)
@@ -405,86 +446,16 @@ class TagText:
         ].values.tolist()
         nmf_topic_array = self.np.array(nmf_topic)
         nmf_feature_names = nmf_tfidf_vectorizer.get_feature_names()
-																	
         return (" ".join([
                         nmf_feature_names[i]
                         for i in nmf_topic_array.argsort()
                         [
                             :-no_top_words - 1:-1
                         ]
-														 
-												   
-						
-
-														
-												  
-					   
-
-					 
-																
-														
-												 
-																
-									  
-																 
-																 
-											  
-											   
-													 
-												   
-														  
-															 
-															 
-								  
-
-		   
-																			
-																		
-																	
-																	   
-		   
-															   
-															
-														
-														  
-															
-
-																						
-									   
-										  
-				
-
-																			 
-
-									
-											   
-										   
-														 
-																						  
                     ])
-		  
                 )
-								  
-																					
-		   
-						
-												  
-		   
-													
-						  
-		   
-															  
-		   
-																 
-		   
-									 
-		   
-												  
-																	
-
+    
     def test_supervised_rg(self, data_tag, data_preprocessed):
-															  
-
         X = [str(item) for item in data_preprocessed]
         y_train_tag = [
             item[:-1].split(',')
@@ -518,71 +489,11 @@ class TagText:
         list_id = [i for i, x in enumerate(tempTag) if x > 0.050]
         print([lb.classes_[id] for id in list_id])
         return str([lb.classes_[id] for id in list_id])
-
-
-					
-																
-														
-												 
-																
-									  
-																 
-																 
-											  
-											   
-													 
-												   
-														  
-															 
-															 
-								  
-
-		   
-																			
-																		
-																	
-																	   
-		   
-															   
-															
-														
-														  
-															
-
-																						
-									   
-										  
-				
-
-																			 
-
-									
-											   
-										   
-														 
-																						  
-													
-		  
-
-								  
-																					
-		   
-						
-												  
-		   
-													
-						  
-		   
-															  
-		   
-																 
-		   
-									 
-		   
-												  
-																	
-					  
+    
     def supervised_prepare_tag_load(self):
+        '''
+        load classifier and classe from file for supervised model
+        '''
         classifier = self.joblib.load(
             self.urlDirectoryLoad +
             self.supervised_classifier_filename
@@ -594,6 +505,9 @@ class TagText:
         return classifier, classes
 
     def supervised_prepare_tag(self, data_preprocessed, data_tag):
+        '''
+        prepare classifier and classe from file for supervised model
+        '''
         X = [str(item) for item in data_preprocessed]
         y_train_tag = [
             item[:-1].split(',')
@@ -601,7 +515,6 @@ class TagText:
         ]
 #       -1 car il y a un ',' à la fin de la ligne
         print(y_train_tag)
-						  
         lb = self.MultiLabelBinarizer()
         Y = lb.fit_transform(y_train_tag)
         print(Y)
@@ -617,13 +530,14 @@ class TagText:
                     random_state=0
                 )
             )
-        ])
-		  
+        ])  
         classifier.fit(X, Y)
-
         return classifier, lb.classes_
 
     def supervised_prepare_tag_and_save(self, data_preprocessed, data_tag):
+        '''
+        prepare and save classifier and classe from file for supervised model
+        '''
         classifier, classes = self.supervised_prepare_tag(
             data_preprocessed,
             data_tag
@@ -632,6 +546,9 @@ class TagText:
         return classifier, classes
 
     def supervised_save(self, classifier, classes):
+        '''
+        save classifier and classe from file for supervised model
+        '''
         self.joblib.dump(
             classifier,
             (
@@ -651,8 +568,10 @@ class TagText:
         return
 
     def supervised_predict(self, text, classifier, classes):
+        '''
+        predict tag form text in function of supervised model
+        '''
         predicted = classifier.predict_proba([text])
-													
         tempTag = [item[0][1] for item in predicted]
         print(classes)
         list_id = [i for i, x in enumerate(tempTag) if x > self.probabilite_minimun] #0.050]
