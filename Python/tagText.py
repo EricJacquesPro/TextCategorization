@@ -265,7 +265,7 @@ class TagText:
         # See model parameters
         print(lda.get_params())
         
-        return lda, score, perplexity, score_test
+        return lda, score, perplexity
     
     def lda_init(self, documents):
         '''
@@ -286,11 +286,15 @@ class TagText:
         #documents = data_preprocessed.unique()[0:self.precision]
         
         documents = data_preprocessed[0:self.precision].unique()
-        
+        import numpy as np
         from sklearn import metrics
         from sklearn.preprocessing import LabelEncoder
         from sklearn.model_selection import train_test_split
-        documents_train, documents_test = train_test_split(X=list(documents), test_size=0.33)
+        #documents_train, documents_test = train_test_split(X=list(documents), test_size=0.33)
+        
+        Y_all = np.zeros(len(documents))
+        
+        documents_train, documents_test, y_train, y_test = self.train_test_split(X=list(documents), y=Y_all, test_size=0.33)
         
         lda_tf, lda_tf_vectorizer = self.lda_init(documents_train)
         lda_tf_test, lda_tf_vectorizer_test = self.lda_init(documents_train)
@@ -361,10 +365,9 @@ class TagText:
         documents = data_preprocessed[0:self.precision].unique()
         lda_tf, lda_tf_vectorizer = self.lda_init(documents)
         
-        lda, score, perplexity, score_validation = self.lda_train(lda_tf, no_tropics)
+        lda, score, perplexity = self.lda_train(lda_tf, no_tropics)
         
         print("Log Likelihood: ", score)
-        print("Log Likelihood (validation): ", score_validation)
         print("Perplexity: ", perplexity)
 
         # See model parameters
@@ -763,7 +766,6 @@ class TagText:
     def supervised_prepare_tag(self, data_preprocessed, data_tag):
         from sklearn.pipeline import Pipeline
         from sklearn import metrics
-        from sklearn.preprocessing import MultiLabelBinarizer
         '''
         prepare classifier and class from file for supervised model
         '''
@@ -784,7 +786,7 @@ class TagText:
         ]
 
         #print(y_train_tag)
-        lb = MultiLabelBinarizer()
+        lb = self.MultiLabelBinarizer()
         Y_all = lb.fit_transform(y_all)
         
         X_train, X_test, y_train, y_test = self.train_test_split(X=data_preprocessed, y=Y_all, test_size=0.33)
@@ -831,7 +833,6 @@ class TagText:
     
     def evaluation_analysis(self, true_label, predicted): 
         from sklearn import metrics
-        '''
         print ("accuracy: {}".format(metrics.accuracy_score(true_label, predicted)))
         print ("f1 score macro: {}".format(metrics.f1_score(true_label, predicted, average='macro')  ) )  
         print ("f1 score micro: {}".format(metrics.f1_score(true_label, predicted, average='micro') ))
@@ -844,7 +845,7 @@ class TagText:
         print ("zero_one_loss: {}".format(metrics.zero_one_loss(true_label, predicted)))
         print ("AUC&ROC: {}".format(metrics.roc_auc_score(true_label, predicted)))
         print ("matthews_corrcoef: {}".format( metrics.matthews_corrcoef(true_label, predicted) ))
-        '''
+        
         
     def supervised_prepare_tag_and_save(self, data_preprocessed, data_tag):
         '''
@@ -884,11 +885,37 @@ class TagText:
         predict tag form text in function of supervised model
         '''
         predicted = classifier.predict_proba([text])
-        print(predicted)
-        tempTag = [(1-item[0][0]) for item in predicted]
+        tempTag = [item[0][1] for item in predicted]
         print(classes)
         list_id = [i for i, x in enumerate(tempTag) if x > self.probabilite_minimun] #0.050]
-        print(list_id)
         print([classes[id] for id in list_id])
         return str([classes[id] for id in list_id])
-
+    
+    def visualize_data(self, data_preprocessed):
+        '''
+        visualize data
+        '''
+        
+        import matplotlib.pyplot as plt
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.manifold import TSNE
+        documents = data_preprocessed[0:self.precision].unique()
+        
+        lda_tf_vectorizer = self.TfidfVectorizer(
+            max_df=0.95,
+            min_df=2,
+            max_features=50000,
+            stop_words='english',
+            lowercase=True,
+        )
+        lda_tf = lda_tf_vectorizer.fit_transform(documents)
+        
+        tsne_num_components=20
+        
+        # t-SNE plot
+        embeddings = TSNE(n_components=tsne_num_components)
+        Y = embeddings.fit_transform(lda_tf)
+        plt.scatter(Y[:, 0], Y[:, 1], cmap=plt.cm.Spectral)
+        plt.show()
+        
+    
