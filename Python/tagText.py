@@ -156,8 +156,11 @@ class TagText:
         return (sorted(corpora.items(), reverse=True,  key=lambda x: x[1]))
     
     def train_test_split(self, X, y, test_size=0.33):
+        '''
+        split data into train and test data
+        '''
         from sklearn.model_selection import train_test_split
-        return train_test_split(X, y, test_size=test_size)#, random_state=42)
+        return train_test_split(X, y, test_size=test_size)
 
     def unsupervised_tag(self, dict_word_key, new_question, number_max_tag):
         '''
@@ -247,15 +250,6 @@ class TagText:
                     random_state=100, topic_word_prior=None,
                     total_samples=1000000.0, verbose=0
                 ).fit(lda_tf)
-        """
-        lda = self.LatentDirichletAllocation(
-            n_topics=no_components, #n_components=no_components,
-            max_iter=5,
-            learning_method='online',
-            learning_offset=50.,
-            random_state=0
-        ).fit(lda_tf)
-        """
         # Log Likelyhood: Higher the better
         score =  lda.score(lda_tf)
 
@@ -281,16 +275,18 @@ class TagText:
         lda_tf = lda_tf_vectorizer.fit_transform(documents)
         return lda_tf, lda_tf_vectorizer
 
-    def lda_find_topic_number(self, data_preprocessed, topic_number_min, topic_number_max, topic_number_step):
-        
-        #documents = data_preprocessed.unique()[0:self.precision]
-        
+    def lda_find_topic_number(
+        self, 
+        data_preprocessed, 
+        topic_number_min, 
+        topic_number_max, 
+        topic_number_step
+    ):
         documents = data_preprocessed[0:self.precision].unique()
         import numpy as np
         from sklearn import metrics
         from sklearn.preprocessing import LabelEncoder
         from sklearn.model_selection import train_test_split
-        #documents_train, documents_test = train_test_split(X=list(documents), test_size=0.33)
         
         Y_all = np.zeros(len(documents))
         
@@ -298,7 +294,6 @@ class TagText:
         
         lda_tf, lda_tf_vectorizer = self.lda_init(documents_train)
         lda_tf_test, lda_tf_vectorizer_test = self.lda_init(documents_train)
-        #lda_tf = self.lda_init(documents)
         
         performance_indicateurs=[]
         performance_score_indicateurs=[]
@@ -306,12 +301,11 @@ class TagText:
         for no_tropics in range(topic_number_min, topic_number_max, topic_number_step):
             lda, score, perplexity = self.lda_train(lda_tf, no_tropics)
             score_validation = lda.score(lda_tf_test)
-            #performance_indicateurs.append(score - perplexity)
             performance_score_indicateurs.append(score)
             performance_score_validation_indicateurs.append(score_validation)
             del lda, score, perplexity, score_validation
         return performance_score_indicateurs, performance_score_validation_indicateurs;
-    
+    '''
     def lda_find_best_topic_number(self, data_preprocessed):
         
         documents = data_preprocessed[0:self.precision].unique()
@@ -357,6 +351,7 @@ class TagText:
         self.plt.ylabel("Log Likelyhood Scores")
         self.plt.legend(title='Learning decay', loc='best')
         self.plt.show()
+    '''
     
     def lda_prepare_tag(self, data_preprocessed, no_tropics=32):
         '''
@@ -484,19 +479,7 @@ class TagText:
             l1_ratio=.5,
             init='nndsvd'
         ).fit(nmf_tfidf)
-        '''
-        # Run the coherence model to get the score
-        cm = self.CoherenceModel(
-            model=nmf,
-            texts=nmf_tfidf,
-            dictionary=dictionary,
-            coherence='c_v'
-        )
-        
-
-        coherence = round(cm.get_coherence(), 5)
-        '''
-        return nmf#, coherence
+        return nmf
 
     def nmf_init(self, documents):
         '''
@@ -512,7 +495,7 @@ class TagText:
         
         nmf_tfidf = nmf_tfidf_vectorizer.fit_transform(documents)
         return nmf_tfidf, nmf_tfidf_vectorizer
-    
+    '''
     def nmf_find_best_topic_number(self, data_preprocessed, topic_number_min=10, topic_number_max=40, topic_number_step=5, learning_decay_min=0.5, learning_decay_max=1, learning_decay_step=0.2):
         n_topics = range(topic_number_min, topic_number_max, topic_number_step)
         documents = data_preprocessed[0:self.precision].unique()
@@ -562,8 +545,14 @@ class TagText:
         self.plt.ylabel("Log Likelyhood Scores")
         self.plt.legend(title='Learning decay', loc='best')
         self.plt.show()
-        
-    def nmf_find_topic_number(self, data_preprocessed, topic_number_min, topic_number_max, topic_number_step):
+    '''    
+    def nmf_find_topic_number(
+        self, 
+        data_preprocessed, 
+        topic_number_min, 
+        topic_number_max, 
+        topic_number_step
+    ):
         '''
         find the best number of cluster
         '''
@@ -574,33 +563,22 @@ class TagText:
         performance_indicateurs=[]
         for no_topics in range(topic_number_min, topic_number_max, topic_number_step):
             nmf = self.nmf_train(nmf_tfidf, no_topics)
-            '''
-            print('original reconstruction error automatically calculated -> TRAIN: ', nmf.reconstruction_err_)
-
-            """ Manual reconstruction_err_ calculation
-                -> use transform to get W
-                -> ask fitted NMF to get H
-                -> use available _beta_divergence-function to calculate desired metric
-            """
-            W_train = nmf.transform(nmf_tfidf)
-            rec_error = _beta_divergence(nmf_tfidf, W_train, nmf.components_, 'frobenius', square_root=True)
-            print('Manually calculated rec-error train: ', rec_error)
-            '''
-            #performance_indicateurs.append(nmf.reconstruction_err_)
             performance_indicateurs.append(self.get_score(nmf, data_preprocessed))
             del nmf
         return performance_indicateurs;
     def get_score(self, model, data):
+        '''
+        Estimate performance of the model on the data 
+        '''
         scorer=self.metrics.explained_variance_score
-        """ Estimate performance of the model on the data """
         prediction = model.inverse_transform(model.transform(data))
         return scorer(data, prediction)
 
     def nmf_prepare_tag(self, data_preprocessed, no_topics=32):
-        from sklearn.decomposition.nmf import _beta_divergence
         '''
         prepare nmf, topic ad tf vectorizer from data preprocessed
         '''
+        from sklearn.decomposition.nmf import _beta_divergence
         documents = data_preprocessed.unique()[0:self.precision]
         
         nmf_tfidf, nmf_tfidf_vectorizer = self.nmf_init(documents)
@@ -649,7 +627,7 @@ class TagText:
         nmf_tfidf_vectorizer
     ):
         '''
-        save lda, topic ad tf vectorizer 
+        save nmf model, topic ad tf vectorizer 
         in file for future loading
         '''
         self.joblib.dump(
@@ -686,7 +664,7 @@ class TagText:
         no_top_words
     ):
         '''
-        save nmf, topic ad tf vectorizer in file for future loading
+        Predict tag of new post
         '''
         text = [text]
         mytext = nmf_tfidf_vectorizer.transform(text)
@@ -756,22 +734,11 @@ class TagText:
         return classifier, classes
 
     def supervised_prepare_tag(self, data_preprocessed, data_tag):
-        from sklearn.pipeline import Pipeline
-        from sklearn import metrics
         '''
         prepare classifier and class from file for supervised model
         '''
-        '''
-        X_train, X_test, y_pre_train, y_pre_test = self.train_test_split(X=data_preprocessed, y=data_tag, test_size=0.33)#, random_state=42)
-        y_train = [
-            item[:-1].split(',')#-1 car il y a un ',' à la fin de la ligne
-            for item in y_pre_train
-        ]
-        y_test = [
-            item[:-1].split(',')#-1 car il y a un ',' à la fin de la ligne
-            for item in y_pre_test
-        ]
-        '''
+        from sklearn.pipeline import Pipeline
+        from sklearn import metrics
         y_all = [
             item[:-1].split(',')#-1 car il y a un ',' à la fin de la ligne
             for item in data_tag
@@ -782,15 +749,7 @@ class TagText:
         Y_all = lb.fit_transform(y_all)
         
         X_train, X_test, y_train, y_test = self.train_test_split(X=data_preprocessed, y=Y_all, test_size=0.33)
-        '''
-        #print (lb.classes_)
-        Y_train = lb.fit_transform(y_train)
-        #print (lb.classes_)
-        Y_test = lb.fit_transform(y_test)
-        #print (lb.classes_)
-        #print(Y)
-        '''
-
+        
         classifier = Pipeline([
             ('vectorizer', self.CountVectorizer()),
             ('tfidf', self.TfidfTransformer()),
@@ -803,26 +762,13 @@ class TagText:
                 )
             )
         ])  
-        #classifier.fit(X, Y)
         classifier.fit(X_train, y_train)
         
         predicted_train = classifier.predict(X_train)
-        '''
-        print(predicted_train)
-        print(y_train)
-        print(self.accuracy_score(y_train, predicted_train))
-        '''
         
         predicted_test = classifier.predict(X_test)
-        '''#print predicted_test
-        print(self.accuracy_score(y_test, predicted_test))
-        '''
-        #print("Accuracy : {}".format((classifier.score(X_train, y_train)*100)))
-        #print("Accuracy : {}".format((classifier.score(X_test, y_test)*100)))
-
-        #self.evaluation_analysis(y_train, predicted_train)
         return classifier, lb.classes_
-    
+    '''
     def evaluation_analysis(self, true_label, predicted): 
         from sklearn import metrics
         print ("accuracy: {}".format(metrics.accuracy_score(true_label, predicted)))
@@ -837,7 +783,7 @@ class TagText:
         print ("zero_one_loss: {}".format(metrics.zero_one_loss(true_label, predicted)))
         print ("AUC&ROC: {}".format(metrics.roc_auc_score(true_label, predicted)))
         print ("matthews_corrcoef: {}".format( metrics.matthews_corrcoef(true_label, predicted) ))
-        
+    '''    
         
     def supervised_prepare_tag_and_save(self, data_preprocessed, data_tag):
         '''
@@ -879,7 +825,6 @@ class TagText:
         predicted = classifier.predict_proba([text])
         tempTag = [(1-item[0][0]) for item in predicted]
         #print(classes)
-        list_id = [i for i, x in enumerate(tempTag) if x > self.probabilite_minimun] #0.050]
         #print([classes[id] for id in list_id])
         return str([classes[id] for id in list_id])
     
