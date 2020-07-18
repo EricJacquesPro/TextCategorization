@@ -358,7 +358,7 @@ class TagText:
         self.plt.legend(title='Learning decay', loc='best')
         self.plt.show()
     
-    def lda_prepare_tag(self, data_preprocessed, no_tropics=20):
+    def lda_prepare_tag(self, data_preprocessed, no_tropics=32):
         '''
         prepare lda, topic ad tf vectorizer from data preprocessed
         '''
@@ -596,7 +596,7 @@ class TagText:
         prediction = model.inverse_transform(model.transform(data))
         return scorer(data, prediction)
 
-    def nmf_prepare_tag(self, data_preprocessed, no_topics=20):
+    def nmf_prepare_tag(self, data_preprocessed, no_topics=32):
         from sklearn.decomposition.nmf import _beta_divergence
         '''
         prepare nmf, topic ad tf vectorizer from data preprocessed
@@ -604,8 +604,6 @@ class TagText:
         documents = data_preprocessed.unique()[0:self.precision]
         
         nmf_tfidf, nmf_tfidf_vectorizer = self.nmf_init(documents)
-        #nmf, coherence = self.nmf_train(nmf_tfidf, no_topics)
-        #nmf = self.nmf_train(nmf_tfidf, no_topics)
         nmf = self.nmf_train(nmf_tfidf, no_topics)
         
         print('original reconstruction error automatically calculated -> TRAIN: ', nmf.reconstruction_err_)
@@ -619,12 +617,6 @@ class TagText:
         rec_error = _beta_divergence(nmf_tfidf, W_train, nmf.components_, 'frobenius', square_root=True)
         print('Manually calculated rec-error train: ', rec_error)
 
-        
-        #print("coherence: ", coherence)
-
-        # See model parameters
-        #print(lda.get_params())
-
         nmf_topicnames = ["Topic" + str(i) for i in range(nmf.n_components)]
 
         # Topic-Keyword Matrix
@@ -635,13 +627,13 @@ class TagText:
         nmf_df_topic_keyword.index = nmf_topicnames
         return nmf, nmf_df_topic_keyword, nmf_tfidf_vectorizer
 
-    def nmf_prepare_tag_and_save(self, data_preprocessed):
+    def nmf_prepare_tag_and_save(self, data_preprocessed, no_topics=32):
         '''
         prepare nmf, topic ad tf vectorizer from data preprocessed
         and save them in file for future loading
         '''
         nmf, nmf_df_topic_keyword, nmf_tfidf_vectorizer = self.nmf_prepare_tag(
-            data_preprocessed
+            data_preprocessed, no_topics
         )
         self.nmf_save(
             nmf,
@@ -825,10 +817,10 @@ class TagText:
         '''#print predicted_test
         print(self.accuracy_score(y_test, predicted_test))
         '''
-        print("Accuracy : {}".format((classifier.score(X_train, y_train)*100)))
-        print("Accuracy : {}".format((classifier.score(X_test, y_test)*100)))
+        #print("Accuracy : {}".format((classifier.score(X_train, y_train)*100)))
+        #print("Accuracy : {}".format((classifier.score(X_test, y_test)*100)))
 
-        self.evaluation_analysis(y_train, predicted_train)
+        #self.evaluation_analysis(y_train, predicted_train)
         return classifier, lb.classes_
     
     def evaluation_analysis(self, true_label, predicted): 
@@ -885,10 +877,10 @@ class TagText:
         predict tag form text in function of supervised model
         '''
         predicted = classifier.predict_proba([text])
-        tempTag = [item[0][1] for item in predicted]
-        print(classes)
+        tempTag = [(1-item[0][0]) for item in predicted]
+        #print(classes)
         list_id = [i for i, x in enumerate(tempTag) if x > self.probabilite_minimun] #0.050]
-        print([classes[id] for id in list_id])
+        #print([classes[id] for id in list_id])
         return str([classes[id] for id in list_id])
     
     def visualize_data(self, data_preprocessed):
