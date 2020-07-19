@@ -368,7 +368,7 @@ class TagText:
         # See model parameters
         print(lda.get_params())
 
-        lda_topicnames = ["Topic" + str(i) for i in range(lda.n_topics)]#lda.n_components)]
+        lda_topicnames = ["Topic" + str(i) for i in range(lda.n_topics)]
         # Topic-Keyword Matrix
         lda_df_topic_keywords = self.pd.DataFrame(lda.components_)
         
