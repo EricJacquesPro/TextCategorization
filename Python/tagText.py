@@ -818,16 +818,21 @@ class TagText:
         )
         return
 
-    def supervised_predict(self, text, classifier, classes):
+    def supervised_predict(self, text, classifier, classes, no_top_words=5):
         '''
         predict tag form text in function of supervised model
         '''
         predicted = classifier.predict_proba([text])
         tempTag = [(1-item[0][0]) for item in predicted]
-        #print(classes)
-        #print([classes[id] for id in list_id])
-        return str([classes[id] for id in list_id])
-    
+        list_id = [[i, x] for i, x in enumerate(tempTag) if x > 0.0050]
+        
+        list_id_sorted = sorted(list_id, reverse=True, key=lambda x: x[1])
+        
+        list_id_sorted_suggested = [x[0] for i, x in enumerate(list_id_sorted[:-no_top_words - 1:-1])]
+        
+        return str([classes[id] for id in list_id_sorted_suggested])
+                        
+        
     def visualize_data(self, data_preprocessed):
         '''
         visualize data
