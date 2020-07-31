@@ -64,6 +64,7 @@ class TagText:
     nombre_post_entree = 50000
     precision = 50000
     probabilite_minimun = 0.050
+    n_topic = 10
 
     def __init__(self):
         self.urlDirectory = "Data/"
@@ -277,34 +278,43 @@ class TagText:
 
     def lda_find_topic_number(
         self, 
-        data_preprocessed, 
+        documents_train,
+        documents_test,
         topic_number_min, 
         topic_number_max, 
         topic_number_step
     ):
-        documents = data_preprocessed[0:self.precision].unique()
+        '''
+        find the better number of topic for the LDA representation of document
+        '''
+        #documents = data_preprocessed[0:self.precision].unique()
         import numpy as np
         from sklearn import metrics
         from sklearn.preprocessing import LabelEncoder
-        from sklearn.model_selection import train_test_split
+        #from sklearn.model_selection import train_test_split
         
-        Y_all = np.zeros(len(documents))
+        #Y_all = np.zeros(len(documents))
         
-        documents_train, documents_test, y_train, y_test = self.train_test_split(X=list(documents), y=Y_all, test_size=0.33)
+        #documents_train, documents_test, y_train, y_test = self.train_test_split(X=list(documents), y=Y_all, test_size=0.33)
         
         lda_tf, lda_tf_vectorizer = self.lda_init(documents_train)
         lda_tf_test, lda_tf_vectorizer_test = self.lda_init(documents_train)
         
-        performance_indicateurs=[]
+        #performance_indicateurs=[]
         performance_score_indicateurs=[]
         performance_score_validation_indicateurs=[]
+        performance_perplexity_indicateurs=[]
+        performance_perplexity_validation_indicateurs=[]
         for no_tropics in range(topic_number_min, topic_number_max, topic_number_step):
             lda, score, perplexity = self.lda_train(lda_tf, no_tropics)
             score_validation = lda.score(lda_tf_test)
+            perplexity_validation = lda.score(lda_tf_test)
             performance_score_indicateurs.append(score)
+            performance_perplexity_indicateurs.append(perplexity)
             performance_score_validation_indicateurs.append(score_validation)
+            performance_perplexity_validation_indicateurs.append(perplexity_validation)
             del lda, score, perplexity, score_validation
-        return performance_score_indicateurs, performance_score_validation_indicateurs;
+        return performance_score_indicateurs, performance_perplexity_indicateurs, performance_score_validation_indicateurs, performance_perplexity_validation_indicateurs
     '''
     def lda_find_best_topic_number(self, data_preprocessed):
         
@@ -357,6 +367,7 @@ class TagText:
         '''
         prepare lda, topic ad tf vectorizer from data preprocessed
         '''
+        self.n_topic = no_tropics
         documents = data_preprocessed[0:self.precision].unique()
         lda_tf, lda_tf_vectorizer = self.lda_init(documents)
         
@@ -428,8 +439,35 @@ class TagText:
         '''
         predict tag form text in function of lda, topic ad tf vectorizer
         '''
+        threshold = 0.010
+        list_scores = []
+        list_words = []
+        used = set()
+
+        text = self.preprocessing(text)
         text = [text]
         mytext = lda_tf_vectorizer.transform(text)
+        text_projection = lda.transform(mytext)
+        lda_feature_names = lda_tf_vectorizer.get_feature_names()
+        lda_components = lda.components_ / lda.components_.sum(axis=1)[:, self.np.newaxis] # normalization
+
+        for topic in range(self.n_topic):
+            topic_score = text_projection[0][topic]
+
+            for (word_idx, word_score) in zip(lda_components[topic].argsort()[:-5:-1], sorted(lda_components[topic])[:-5:-1]):
+                score = topic_score*word_score
+
+                if score >= threshold:
+                    list_scores.append(score)
+                    list_words.append(lda_feature_names[word_idx])
+                    used.add(lda_feature_names[word_idx])
+
+        results = [tag for (y,tag) in sorted(zip(list_scores,list_words), key=lambda pair: pair[0], reverse=True)]
+        unique_results = [x for x in results if x not in used] # get only unique tags
+        tags = " ".join(results[:5])
+
+        return tags
+        '''
         lda_topic_probability_scores = lda.transform(mytext)
         lda_topic = lda_df_topic_keywords.iloc[
             self.np.argmax(lda_topic_probability_scores),
@@ -448,6 +486,7 @@ class TagText:
                         ]
                 )
         )
+        '''
 
     def nmf_prepare_tag_load(self):
         '''
@@ -859,5 +898,70 @@ class TagText:
         Y = embeddings.fit_transform(lda_tf)
         plt.scatter(Y[:, 0], Y[:, 1], cmap=plt.cm.Spectral)
         plt.show()
-        
+    
+    def scoring(x_test, y_true, clf, lb, mode_supervise_with_lda = False, lda_model = None):
+        nb_tag_1 = 0.0
+        nb_tag_5 = 0.0
+        classes = lb.classes_
+        print(x_test.shape[0])
+        no_top_words = 5
+        for i in range(120):
+            #for i in range(x_test.shape[0]):
+            print(".")
+            text_projection = x_test
+            if(mode_supervise_with_lda):
+                text_projection = lda_model.transform(x_test[i])
+            '''
+            print (text_projection)
+            print (text_projection.shape)
+            '''
+            predicted = clf.predict_proba(text_projection)
+            '''
+            print (predicted)
+            print (len(predicted))
+            '''
+            tempTag = [(1-item[0][0]) for item in predicted]
+            list_id = [[i, x] for i, x in enumerate(tempTag) if x > 0.0050]
+            '''
+            tempTag = predicted[0]
+            list_id = [[i, x] for i, x in enumerate(tempTag) ]#if x > 0.0050]
+            '''
+            '''
+            print (predicted)
+            print (predicted.shape)
+            '''
+            list_id_sorted = sorted(list_id, reverse=True, key=lambda x: x[1])
+            #print (list_id_sorted)
+
+            list_id_sorted_suggested = [x[0] for i, x in enumerate(list_id_sorted[:-no_top_words - 1:-1])]
+            #print(list_id_sorted_suggested)
+            prediction = [classes[id] for id in list_id_sorted_suggested]
+            #print (str(prediction))
+
+
+            l_y = [[i, x] for i, x in enumerate(y_true[i]) if x > 0]
+            l_y_tagged = [x[0] for i, x in enumerate(l_y[:-no_top_words - 1:-1])]
+            l_y_tags = [classes[id] for id in l_y_tagged]
+            #print (l_y_tags)
+
+            check_1 = False
+            check_1 = any(item in prediction for item in l_y_tags)
+
+            if check_1 is True:
+                nb_tag_1 = nb_tag_1 + 1
+            """    print("The list {} contains some elements of the list {}".format(prediction, l_y_tags))    
+            else :
+                print("No, List1 doesn't have any elements of the List2.")
+            """
+
+            check_5 = False
+            check_5 = all(item in prediction for item in l_y_tags)
+            if check_5 is True:
+                nb_tag_5 = nb_tag_5 + 1
+            """    print("The list {} contains all elements of the list {}".format(prediction, l_y_tags))    
+            else :
+                print("No, List1 doesn't have any elements of the List2.")
+            """
+            #str([tag for tag in y_true[i]]if tag ==1)
+        return nb_tag_1, (nb_tag_1 / float(x_test.shape[0])), nb_tag_5, (nb_tag_5 / float(x_test.shape[0]))
     
