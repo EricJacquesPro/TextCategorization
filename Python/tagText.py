@@ -772,6 +772,58 @@ class TagText:
         )
         return classifier, classes
 
+    def supervised_prepare_tagV2(self, data_preprocessed, data_tag):
+        '''
+        prepare classifier and class from file for supervised model
+        '''
+        from sklearn.pipeline import Pipeline
+        from sklearn import metrics
+        from sklearn.model_selection import train_test_split
+        from sklearn.feature_extraction.text import TfidfVectorizer
+
+        y_all = [
+            item[:-1].split(',')#-1 car il y a un ',' à la fin de la ligne
+            for item in data_tag
+        ]
+
+        #print(y_train_tag)
+        lb = self.MultiLabelBinarizer()
+        Y_all = lb.fit_transform(y_all)
+
+
+        # 80/20 split
+        X_train, X_test, y_train, y_test = train_test_split(
+            data_preprocessed, y_all, test_size=0.2,train_size=0.8, random_state=0)
+        y_train = lb.transform(y_train)
+        y_test = lb.transform(y_test)
+
+        classifier = Pipeline([
+            ('vectorizer', self.CountVectorizer()),
+            ('tfidf', self.TfidfTransformer()),
+            (
+                'clf',
+                self.RandomForestClassifier(
+                    n_estimators=100,
+                    max_depth=2,
+                    random_state=0
+                )
+            )
+        ])  
+        classifier.fit(X_train, y_train)
+
+        print (len(X_test))
+        print (len(y_test))
+        print (y_test[0])
+        print (X_test)
+
+        nb1, score1, nb5, score5 = self.scoring(X_test, y_test, classifier, lb, False, None)
+
+        print(score1)
+        print(score5)
+
+        return classifier, lb.classes_
+
+    
     def supervised_prepare_tag(self, data_preprocessed, data_tag):
         '''
         prepare classifier and class from file for supervised model
@@ -899,15 +951,14 @@ class TagText:
         plt.scatter(Y[:, 0], Y[:, 1], cmap=plt.cm.Spectral)
         plt.show()
     
-    def scoring(x_test, y_true, clf, lb, mode_supervise_with_lda = False, lda_model = None):
+    def scoring(self, x_test, y_true, clf, lb, mode_supervise_with_lda = False, lda_model = None):
         nb_tag_1 = 0.0
         nb_tag_5 = 0.0
         classes = lb.classes_
         print(x_test.shape[0])
         no_top_words = 5
-        for i in range(120):
+        for i in range(x_test.shape[0]):
             #for i in range(x_test.shape[0]):
-            print(".")
             text_projection = x_test
             if(mode_supervise_with_lda):
                 text_projection = lda_model.transform(x_test[i])
@@ -963,5 +1014,4 @@ class TagText:
                 print("No, List1 doesn't have any elements of the List2.")
             """
             #str([tag for tag in y_true[i]]if tag ==1)
-        return nb_tag_1, (nb_tag_1 / float(x_test.shape[0])), nb_tag_5, (nb_tag_5 / float(x_test.shape[0]))
-    
+        return nb_tag_1, (100.0 * nb_tag_1 / float(x_test.shape[0])), nb_tag_5, (100.0 * nb_tag_5 / float(x_test.shape[0]))
