@@ -56,6 +56,7 @@ class TagText:
     lda_filename = 'lda.joblib'
     lda_df_filename = 'lda_df_topic_keywords.joblib'
     lda_tf_filename = 'lda_tf_vectorizer.joblib'
+    lda_clf_filename = 'lda_clf.joblib'
     nmf_filename = 'nmf.joblib'
     nmf_df_filename = 'nmf_df_topic_keywords.joblib'
     nmf_tf_filename = 'nmf_tf_vectorizer.joblib'
@@ -64,6 +65,7 @@ class TagText:
     nombre_post_entree = 50000
     precision = 50000
     probabilite_minimun = 0.050
+    n_topic = 10
 
     def __init__(self):
         self.urlDirectory = "Data/"
@@ -234,6 +236,28 @@ class TagText:
             self.lda_tf_filename
         )
         return lda, lda_df_topic_keywords, lda_tf_vectorizer
+
+    def lda_prepare_tag_V2_load(self):
+        '''
+        load lda, topic ad tf vectorizer from file
+        '''
+        lda = self.joblib.load(
+            self.urlDirectoryLoad +
+            self.lda_filename
+        )
+        lda_df_topic_keywords = self.joblib.load(
+            self.urlDirectoryLoad +
+            self.lda_df_filename
+        )
+        lda_tf_vectorizer = self.joblib.load(
+            self.urlDirectoryLoad +
+            self.lda_tf_filename
+        )
+        lda_tf_vectorizer = self.joblib.load(
+            self.urlDirectoryLoad +
+            self.lda_clf_filename
+        )
+        return lda, lda_df_topic_keywords, lda_tf_vectorizer, lda_clf_filename
     
     def lda_train(self, lda_tf, no_tropics):
         '''
@@ -277,34 +301,43 @@ class TagText:
 
     def lda_find_topic_number(
         self, 
-        data_preprocessed, 
+        documents_train,
+        documents_test,
         topic_number_min, 
         topic_number_max, 
         topic_number_step
     ):
-        documents = data_preprocessed[0:self.precision].unique()
+        '''
+        find the better number of topic for the LDA representation of document
+        '''
+        #documents = data_preprocessed[0:self.precision].unique()
         import numpy as np
         from sklearn import metrics
         from sklearn.preprocessing import LabelEncoder
-        from sklearn.model_selection import train_test_split
+        #from sklearn.model_selection import train_test_split
         
-        Y_all = np.zeros(len(documents))
+        #Y_all = np.zeros(len(documents))
         
-        documents_train, documents_test, y_train, y_test = self.train_test_split(X=list(documents), y=Y_all, test_size=0.33)
+        #documents_train, documents_test, y_train, y_test = self.train_test_split(X=list(documents), y=Y_all, test_size=0.33)
         
         lda_tf, lda_tf_vectorizer = self.lda_init(documents_train)
         lda_tf_test, lda_tf_vectorizer_test = self.lda_init(documents_train)
         
-        performance_indicateurs=[]
+        #performance_indicateurs=[]
         performance_score_indicateurs=[]
         performance_score_validation_indicateurs=[]
+        performance_perplexity_indicateurs=[]
+        performance_perplexity_validation_indicateurs=[]
         for no_tropics in range(topic_number_min, topic_number_max, topic_number_step):
             lda, score, perplexity = self.lda_train(lda_tf, no_tropics)
             score_validation = lda.score(lda_tf_test)
+            perplexity_validation = lda.score(lda_tf_test)
             performance_score_indicateurs.append(score)
+            performance_perplexity_indicateurs.append(perplexity)
             performance_score_validation_indicateurs.append(score_validation)
+            performance_perplexity_validation_indicateurs.append(perplexity_validation)
             del lda, score, perplexity, score_validation
-        return performance_score_indicateurs, performance_score_validation_indicateurs;
+        return performance_score_indicateurs, performance_perplexity_indicateurs, performance_score_validation_indicateurs, performance_perplexity_validation_indicateurs
     '''
     def lda_find_best_topic_number(self, data_preprocessed):
         
@@ -353,10 +386,57 @@ class TagText:
         self.plt.show()
     '''
     
+    def lda_prepare_tag_V2(self, data, tag, no_tropics=32):
+
+        from sklearn.model_selection import train_test_split
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.decomposition import LatentDirichletAllocation
+
+        # Sampling dataset
+        vectorizer_X = TfidfVectorizer(
+                    max_df=0.95,
+                    min_df=2,
+                    max_features=50000,
+                    stop_words='english'
+        )
+        #Y
+        y_all = [
+            item[:-1].split(',')#-1 car il y a un ',' à la fin de la ligne
+            for item in tag
+        ]
+
+        #print(y_train_tag)
+        lb = self.MultiLabelBinarizer()
+        Y_all = lb.fit_transform(y_all)
+
+        # 80/20 split
+        X_lda_train, X_lda_test, y_lda_train, y_lda_test = train_test_split(
+            data, y_all, test_size=0.05,train_size=0.95, random_state=0)
+        y_lda_train = lb.transform(y_lda_train)
+        y_lda_test = lb.transform(y_lda_test)
+
+        # TF-IDF matrices
+        X_tfidf_train = vectorizer_X.fit_transform(X_lda_train)
+        X_tfidf_test = vectorizer_X.transform(X_lda_test)
+
+        lda_model=LatentDirichletAllocation(n_components=10,learning_method='online',random_state=42,max_iter=1) 
+        lda_top=lda_model.fit_transform(X_tfidf_train)
+
+        clf = RandomForestClassifier(
+                n_estimators=100,
+                max_depth=2,
+                random_state=0
+        )
+        #lda_top=lda_model.fit_transform(X_tfidf_train)
+        clf.fit(lda_top, y_lda_train)
+        return lda_model, lb.classes_, vectorizer_X, clf
+    
     def lda_prepare_tag(self, data_preprocessed, no_tropics=32):
         '''
         prepare lda, topic ad tf vectorizer from data preprocessed
         '''
+        self.n_topic = no_tropics
         documents = data_preprocessed[0:self.precision].unique()
         lda_tf, lda_tf_vectorizer = self.lda_init(documents)
         
@@ -388,6 +468,19 @@ class TagText:
         self.lda_save(lda, lda_df_topic_keywords, lda_tf_vectorizer)
         return lda, lda_df_topic_keywords, lda_tf_vectorizer
 
+    def lda_prepare_tag_and_save_V2(self, data_preprocessed, tag, no_tropics=32):
+        '''
+        prepare lda, topic ad tf vectorizer from data preprocessed
+        and save them in file for future loading
+        '''
+        lda, lda_df_topic_keywords, lda_tf_vectorizer, lda_clf = self.lda_prepare_tag_V2(
+            data=data_preprocessed,
+            tag=tag,
+            no_tropics=no_tropics
+        )
+        self.lda_save_V2(lda, lda_df_topic_keywords, lda_tf_vectorizer, lda_clf)
+        return lda, lda_df_topic_keywords, lda_tf_vectorizer, lda_clf
+
     def lda_save(self, lda, lda_df_topic_keywords, lda_tf_vectorizer):
         '''
         save lda, topic ad tf vectorizer in file for future loading
@@ -416,6 +509,72 @@ class TagText:
             0
         )
         return
+    
+    def lda_save_V2(self, lda, lda_df_topic_keywords, lda_tf_vectorizer, lda_clf):
+        '''
+        save lda, topic ad tf vectorizer in file for future loading
+        '''
+        self.joblib.dump(
+            lda,
+            (
+                self.urlDirectoryLoad +
+                self.lda_filename
+            ),
+            0
+        )
+        self.joblib.dump(
+            lda_df_topic_keywords,
+            (
+                self.urlDirectoryLoad +
+                self.lda_df_filename
+            )
+        )
+        self.joblib.dump(
+            lda_tf_vectorizer,
+            (
+                self.urlDirectoryLoad +
+                self.lda_tf_filename
+            ),
+            0
+        )
+        self.joblib.dump(
+            lda_clf,
+            (
+                self.urlDirectoryLoad +
+                self.lda_clf_filename
+            ),
+            0
+        )    
+        return
+    
+    
+    def lda_predict_V2(
+        self,
+        text,
+        lda_tf_vectorizer,
+        lda,
+        classifier,
+        classes,
+        no_top_words=5
+    ):
+        '''
+        predict tag form text in function of supervised model
+        '''
+        text = self.preprocessing(text)
+        text = [text]
+        mytext = lda_tf_vectorizer.transform(text)
+
+        text_projection = lda.transform(mytext)
+        predicted = classifier.predict_proba(text_projection)
+        tempTag = [(1-item[0][0]) for item in predicted]
+        list_id = [[i, x] for i, x in enumerate(tempTag) if x > 0.0050]
+
+        list_id_sorted = sorted(list_id, reverse=True, key=lambda x: x[1])
+
+        list_id_sorted_suggested = [x[0] for i, x in enumerate(list_id_sorted[:-no_top_words - 1:-1])]
+
+        return str([classes[id] for id in list_id_sorted_suggested])
+
 
     def lda_predict(
         self,
@@ -428,8 +587,35 @@ class TagText:
         '''
         predict tag form text in function of lda, topic ad tf vectorizer
         '''
+        threshold = 0.010
+        list_scores = []
+        list_words = []
+        used = set()
+
+        text = self.preprocessing(text)
         text = [text]
         mytext = lda_tf_vectorizer.transform(text)
+        text_projection = lda.transform(mytext)
+        lda_feature_names = lda_tf_vectorizer.get_feature_names()
+        lda_components = lda.components_ / lda.components_.sum(axis=1)[:, self.np.newaxis] # normalization
+
+        for topic in range(self.n_topic):
+            topic_score = text_projection[0][topic]
+
+            for (word_idx, word_score) in zip(lda_components[topic].argsort()[:-5:-1], sorted(lda_components[topic])[:-5:-1]):
+                score = topic_score*word_score
+
+                if score >= threshold:
+                    list_scores.append(score)
+                    list_words.append(lda_feature_names[word_idx])
+                    used.add(lda_feature_names[word_idx])
+
+        results = [tag for (y,tag) in sorted(zip(list_scores,list_words), key=lambda pair: pair[0], reverse=True)]
+        unique_results = [x for x in results if x not in used] # get only unique tags
+        tags = " ".join(results[:5])
+
+        return tags
+        '''
         lda_topic_probability_scores = lda.transform(mytext)
         lda_topic = lda_df_topic_keywords.iloc[
             self.np.argmax(lda_topic_probability_scores),
@@ -448,6 +634,7 @@ class TagText:
                         ]
                 )
         )
+        '''
 
     def nmf_prepare_tag_load(self):
         '''
@@ -733,6 +920,59 @@ class TagText:
         )
         return classifier, classes
 
+    def supervised_prepare_tagV2(self, data_preprocessed, data_tag):
+        '''
+        prepare classifier and class from file for supervised model
+        '''
+        from sklearn.pipeline import Pipeline
+        from sklearn import metrics
+        from sklearn.model_selection import train_test_split
+        from sklearn.feature_extraction.text import TfidfVectorizer
+
+        y_all = [
+            item[:-1].split(',')#-1 car il y a un ',' à la fin de la ligne
+            for item in data_tag
+        ]
+
+        #print(y_train_tag)
+        lb = self.MultiLabelBinarizer()
+        Y_all = lb.fit_transform(y_all)
+
+
+        # 80/20 split
+        X_train, X_test, y_train, y_test = train_test_split(
+            data_preprocessed, y_all, test_size=0.05,train_size=0.95, random_state=0)
+        y_train = lb.transform(y_train)
+        y_test = lb.transform(y_test)
+
+        classifier = Pipeline([
+            ('vectorizer', self.CountVectorizer()),
+            ('tfidf', self.TfidfTransformer()),
+            (
+                'clf',
+                self.RandomForestClassifier(
+                    n_estimators=100,
+                    max_depth=2,
+                    random_state=0
+                )
+            )
+        ])  
+        classifier.fit(X_train, y_train)
+        '''
+        print (len(X_test))
+        print (len(y_test))
+        print (y_test[0])
+        print (X_test)
+        '''
+
+        nb1, score1, nb5, score5 = self.scoring(X_test, y_test, classifier, lb, False, None)
+
+        print("score 1 occurence {}".format(score1))
+        print("score 5 occurences {}".format(score5))
+
+        return classifier, lb.classes_
+
+    
     def supervised_prepare_tag(self, data_preprocessed, data_tag):
         '''
         prepare classifier and class from file for supervised model
@@ -859,5 +1099,103 @@ class TagText:
         Y = embeddings.fit_transform(lda_tf)
         plt.scatter(Y[:, 0], Y[:, 1], cmap=plt.cm.Spectral)
         plt.show()
-        
     
+    def scoring(self, x_test, y_true, clf, lb, mode_supervise_with_lda = False, lda_model = None):
+        import time
+        debut_scoring = time.time()
+        nb_tag_1 = 0.0
+        nb_tag_5 = 0.0
+        classes = lb.classes_
+        #print(x_test.shape[0])
+        no_top_words = 5
+        for i in range(x_test.shape[0]):
+
+            debut_boucle = time.time()
+            #for i in range(x_test.shape[0]):
+            text_projection = x_test
+            if(mode_supervise_with_lda):
+                text_projection = lda_model.transform(x_test[i])
+            else:
+                text_projection = x_test.values[i]
+                text_projection = [text_projection]
+            '''
+            print (text_projection)
+            print (text_projection.shape)
+            '''
+            
+            debut_prediction = time.time()
+            predicted = clf.predict_proba(text_projection)
+            fin_prediction = time.time()
+            #print("temps pour la prediction : {0} s".format(fin_prediction - debut_prediction))
+            del debut_prediction, fin_prediction
+
+            '''
+            print (predicted)
+            print (len(predicted))
+            '''
+            debut_generation_tag = time.time()
+            tempTag = [(1-item[0][0]) for item in predicted]
+            list_id = [[i, x] for i, x in enumerate(tempTag) if x > 0.0050]
+            '''
+            tempTag = predicted[0]
+            list_id = [[i, x] for i, x in enumerate(tempTag) ]#if x > 0.0050]
+            '''
+            '''
+            print (predicted)
+            print (predicted.shape)
+            '''
+            list_id_sorted = sorted(list_id, reverse=True, key=lambda x: x[1])
+            #print (list_id_sorted)
+
+            list_id_sorted_suggested = [x[0] for i, x in enumerate(list_id_sorted[:-no_top_words - 1:-1])]
+            #print(list_id_sorted_suggested)
+            prediction = [classes[id] for id in list_id_sorted_suggested]
+            fin_generation_tag = time.time()
+            #print("temps pour la generation : {0} s".format(fin_generation_tag - debut_generation_tag))
+            del debut_generation_tag, fin_generation_tag
+
+            #print (str(prediction))
+
+            debut_y = time.time()
+            l_y = [[i, x] for i, x in enumerate(y_true[i]) if x > 0]
+            l_y_tagged = [x[0] for i, x in enumerate(l_y[:-no_top_words - 1:-1])]
+            l_y_tags = [classes[id] for id in l_y_tagged]
+            #print (l_y_tags)
+            fin_y = time.time()
+            #print("temps pour lecture y : {0} s".format(fin_y - debut_y))
+            del debut_y, fin_y
+
+            debut_ch1 = time.time()
+            check_1 = False
+            check_1 = any(item in prediction for item in l_y_tags)
+
+            if check_1 is True:
+                nb_tag_1 = nb_tag_1 + 1
+            """    print("The list {} contains some elements of the list {}".format(prediction, l_y_tags))    
+            else :
+                print("No, List1 doesn't have any elements of the List2.")
+            """
+            fin_ch1 = time.time()
+            #print("temps pour check 1 : {0} s".format(fin_ch1 - debut_ch1))
+            del debut_ch1, fin_ch1
+
+            debut_ch5 = time.time()
+            check_5 = False
+            check_5 = all(item in prediction for item in l_y_tags)
+            if check_5 is True:
+                nb_tag_5 = nb_tag_5 + 1
+            """    print("The list {} contains all elements of the list {}".format(prediction, l_y_tags))    
+            else :
+                print("No, List1 doesn't have any elements of the List2.")
+            """
+            fin_ch5 = time.time()
+            #print("temps pour check 5 : {0} s".format(fin_ch5 - debut_ch5))
+            del debut_ch5, fin_ch5
+            #str([tag for tag in y_true[i]]if tag ==1)
+            fin_boucle = time.time()
+            print("temps pour la boucle scorring : {0} s".format(fin_boucle - debut_boucle))
+            del fin_boucle, debut_boucle
+        fin_scoring = time.time()
+        print("temps pour le function scoring : {0} s".format(fin_scoring - debut_scoring))
+        del fin_scoring, debut_scoring
+        return nb_tag_1, (100.0 * nb_tag_1 / float(x_test.shape[0])), nb_tag_5, (100.0 * nb_tag_5 / float(x_test.shape[0]))

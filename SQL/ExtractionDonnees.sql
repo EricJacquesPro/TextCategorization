@@ -6,10 +6,9 @@
 WITH Best_Tags AS (
         SELECT Id, TagName, Count
         FROM Tags
-        WHERE Count > 999
-        --ORDER BY Tags.Count DESC
+        WHERE Count > 10000
      )
-SELECT p.body, p.title
+SELECT Top 50000 p.body, p.title
 		, p.tags
 		, (
 				SELECT TagName + ',' AS [text()]
