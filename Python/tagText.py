@@ -253,11 +253,11 @@ class TagText:
             self.urlDirectoryLoad +
             self.lda_tf_filename
         )
-        lda_tf_vectorizer = self.joblib.load(
+        lda_clf = self.joblib.load(
             self.urlDirectoryLoad +
             self.lda_clf_filename
         )
-        return lda, lda_df_topic_keywords, lda_tf_vectorizer, lda_clf_filename
+        return lda, lda_df_topic_keywords, lda_tf_vectorizer, lda_clf
     
     def lda_train(self, lda_tf, no_tropics):
         '''
@@ -1029,7 +1029,7 @@ class TagText:
         '''
         prepare and save classifier and classe from file for supervised model
         '''
-        classifier, classes = self.supervised_prepare_tag(
+        classifier, classes = self.supervised_prepare_tagV2(
             data_preprocessed,
             data_tag
         )
@@ -1106,63 +1106,38 @@ class TagText:
         nb_tag_1 = 0.0
         nb_tag_5 = 0.0
         classes = lb.classes_
-        #print(x_test.shape[0])
         no_top_words = 5
         for i in range(x_test.shape[0]):
 
             debut_boucle = time.time()
-            #for i in range(x_test.shape[0]):
             text_projection = x_test
             if(mode_supervise_with_lda):
                 text_projection = lda_model.transform(x_test[i])
             else:
                 text_projection = x_test.values[i]
                 text_projection = [text_projection]
-            '''
-            print (text_projection)
-            print (text_projection.shape)
-            '''
             
             debut_prediction = time.time()
             predicted = clf.predict_proba(text_projection)
             fin_prediction = time.time()
-            #print("temps pour la prediction : {0} s".format(fin_prediction - debut_prediction))
             del debut_prediction, fin_prediction
 
-            '''
-            print (predicted)
-            print (len(predicted))
-            '''
             debut_generation_tag = time.time()
             tempTag = [(1-item[0][0]) for item in predicted]
             list_id = [[i, x] for i, x in enumerate(tempTag) if x > 0.0050]
-            '''
-            tempTag = predicted[0]
-            list_id = [[i, x] for i, x in enumerate(tempTag) ]#if x > 0.0050]
-            '''
-            '''
-            print (predicted)
-            print (predicted.shape)
-            '''
             list_id_sorted = sorted(list_id, reverse=True, key=lambda x: x[1])
-            #print (list_id_sorted)
-
             list_id_sorted_suggested = [x[0] for i, x in enumerate(list_id_sorted[:-no_top_words - 1:-1])]
-            #print(list_id_sorted_suggested)
+            
             prediction = [classes[id] for id in list_id_sorted_suggested]
             fin_generation_tag = time.time()
-            #print("temps pour la generation : {0} s".format(fin_generation_tag - debut_generation_tag))
+            
             del debut_generation_tag, fin_generation_tag
-
-            #print (str(prediction))
 
             debut_y = time.time()
             l_y = [[i, x] for i, x in enumerate(y_true[i]) if x > 0]
             l_y_tagged = [x[0] for i, x in enumerate(l_y[:-no_top_words - 1:-1])]
             l_y_tags = [classes[id] for id in l_y_tagged]
-            #print (l_y_tags)
             fin_y = time.time()
-            #print("temps pour lecture y : {0} s".format(fin_y - debut_y))
             del debut_y, fin_y
 
             debut_ch1 = time.time()
@@ -1171,12 +1146,7 @@ class TagText:
 
             if check_1 is True:
                 nb_tag_1 = nb_tag_1 + 1
-            """    print("The list {} contains some elements of the list {}".format(prediction, l_y_tags))    
-            else :
-                print("No, List1 doesn't have any elements of the List2.")
-            """
             fin_ch1 = time.time()
-            #print("temps pour check 1 : {0} s".format(fin_ch1 - debut_ch1))
             del debut_ch1, fin_ch1
 
             debut_ch5 = time.time()
@@ -1184,18 +1154,11 @@ class TagText:
             check_5 = all(item in prediction for item in l_y_tags)
             if check_5 is True:
                 nb_tag_5 = nb_tag_5 + 1
-            """    print("The list {} contains all elements of the list {}".format(prediction, l_y_tags))    
-            else :
-                print("No, List1 doesn't have any elements of the List2.")
-            """
+
             fin_ch5 = time.time()
-            #print("temps pour check 5 : {0} s".format(fin_ch5 - debut_ch5))
             del debut_ch5, fin_ch5
-            #str([tag for tag in y_true[i]]if tag ==1)
             fin_boucle = time.time()
-            print("temps pour la boucle scorring : {0} s".format(fin_boucle - debut_boucle))
             del fin_boucle, debut_boucle
         fin_scoring = time.time()
-        print("temps pour le function scoring : {0} s".format(fin_scoring - debut_scoring))
         del fin_scoring, debut_scoring
         return nb_tag_1, (100.0 * nb_tag_1 / float(x_test.shape[0])), nb_tag_5, (100.0 * nb_tag_5 / float(x_test.shape[0]))
