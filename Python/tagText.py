@@ -239,7 +239,7 @@ class TagText:
 
     def lda_prepare_tag_V2_load(self):
         '''
-        load lda, topic ad tf vectorizer from file
+        load lda, topic, tf vectorizer and classifier from file
         '''
         lda = self.joblib.load(
             self.urlDirectoryLoad +
@@ -338,56 +338,11 @@ class TagText:
             performance_perplexity_validation_indicateurs.append(perplexity_validation)
             del lda, score, perplexity, score_validation
         return performance_score_indicateurs, performance_perplexity_indicateurs, performance_score_validation_indicateurs, performance_perplexity_validation_indicateurs
-    '''
-    def lda_find_best_topic_number(self, data_preprocessed):
-        
-        documents = data_preprocessed[0:self.precision].unique()
-        lda_tf, lda_tf_vectorizer = self.lda_init(documents)
-        
-        # Define Search Param
-        search_params = {'n_components': [2,4,6,8,10,12,14, 16,18,20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40], 'learning_decay': [.5, .7, .9]}
-
-        # Init the Model
-        lda = self.LatentDirichletAllocation()
-
-        # Init Grid Search Class
-        model = self.GridSearchCV(lda, param_grid=search_params)
-
-        # Do the Grid Search
-        model.fit(lda_tf)
-        
-        # Best Model
-        best_lda_model = model.best_estimator_
-
-        # Model Parameters
-        print("Best Model's Params: ", model.best_params_)
-
-        # Log Likelihood Score
-        print("Best Log Likelihood Score: ", model.best_score_)
-
-        # Perplexity
-        print("Model Perplexity: ", best_lda_model.perplexity(lda_tf))
-        
-        # Get Log Likelyhoods from Grid Search Output
-        n_topics = [2,4,6,8,10,12,14, 16,18,20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40]
-        log_likelyhoods_5 = [round(gscore.mean_validation_score) for gscore in model.grid_scores_ if gscore.parameters['learning_decay']==0.5]
-        log_likelyhoods_7 = [round(gscore.mean_validation_score) for gscore in model.grid_scores_ if gscore.parameters['learning_decay']==0.7]
-        log_likelyhoods_9 = [round(gscore.mean_validation_score) for gscore in model.grid_scores_ if gscore.parameters['learning_decay']==0.9]
-
-        # Show graph
-        self.plt.figure(figsize=(12, 8))
-        self.plt.plot(n_topics, log_likelyhoods_5, label='0.5')
-        self.plt.plot(n_topics, log_likelyhoods_7, label='0.7')
-        self.plt.plot(n_topics, log_likelyhoods_9, label='0.9')
-        self.plt.title("Choosing Optimal LDA Model")
-        self.plt.xlabel("Num Topics")
-        self.plt.ylabel("Log Likelyhood Scores")
-        self.plt.legend(title='Learning decay', loc='best')
-        self.plt.show()
-    '''
     
     def lda_prepare_tag_V2(self, data, tag, no_tropics=32):
-
+		'''
+        prepare lda, topic, tf vectorizer and classifier from data preprocessed
+        '''
         from sklearn.model_selection import train_test_split
         from sklearn.feature_extraction.text import TfidfVectorizer
         from sklearn.ensemble import RandomForestClassifier
@@ -434,6 +389,7 @@ class TagText:
     
     def lda_prepare_tag(self, data_preprocessed, no_tropics=32):
         '''
+		obsolete
         prepare lda, topic ad tf vectorizer from data preprocessed
         '''
         self.n_topic = no_tropics
@@ -459,6 +415,7 @@ class TagText:
 
     def lda_prepare_tag_and_save(self, data_preprocessed):
         '''
+		obsolete
         prepare lda, topic ad tf vectorizer from data preprocessed
         and save them in file for future loading
         '''
@@ -470,7 +427,7 @@ class TagText:
 
     def lda_prepare_tag_and_save_V2(self, data_preprocessed, tag, no_tropics=32):
         '''
-        prepare lda, topic ad tf vectorizer from data preprocessed
+        prepare lda, topic, tf vectorizer and classifier from data preprocessed
         and save them in file for future loading
         '''
         lda, lda_df_topic_keywords, lda_tf_vectorizer, lda_clf = self.lda_prepare_tag_V2(
@@ -483,6 +440,7 @@ class TagText:
 
     def lda_save(self, lda, lda_df_topic_keywords, lda_tf_vectorizer):
         '''
+		obsolete
         save lda, topic ad tf vectorizer in file for future loading
         '''
         self.joblib.dump(
@@ -512,7 +470,7 @@ class TagText:
     
     def lda_save_V2(self, lda, lda_df_topic_keywords, lda_tf_vectorizer, lda_clf):
         '''
-        save lda, topic ad tf vectorizer in file for future loading
+        save lda, topic, tf vectorizer and classifier in file for future loading
         '''
         self.joblib.dump(
             lda,
@@ -558,7 +516,7 @@ class TagText:
         no_top_words=5
     ):
         '''
-        predict tag form text in function of supervised model
+        predict tag form text in function of lda, topic, tf vectorizer and classifier
         '''
         text = self.preprocessing(text)
         text = [text]
@@ -585,6 +543,7 @@ class TagText:
         no_top_words
     ):
         '''
+		Obsolete
         predict tag form text in function of lda, topic ad tf vectorizer
         '''
         threshold = 0.010
@@ -615,26 +574,6 @@ class TagText:
         tags = " ".join(results[:5])
 
         return tags
-        '''
-        lda_topic_probability_scores = lda.transform(mytext)
-        lda_topic = lda_df_topic_keywords.iloc[
-            self.np.argmax(lda_topic_probability_scores),
-            :
-        ].values.tolist()
-        topic_array = self.np.array(lda_topic)
-        lda_feature_names = lda_tf_vectorizer.get_feature_names()
-        return (
-            " ".join(
-                        [
-                            lda_feature_names[i]
-                            for i in topic_array.argsort()
-                            [
-                                :-no_top_words - 1:-1
-                            ]
-                        ]
-                )
-        )
-        '''
 
     def nmf_prepare_tag_load(self):
         '''
@@ -682,57 +621,7 @@ class TagText:
         
         nmf_tfidf = nmf_tfidf_vectorizer.fit_transform(documents)
         return nmf_tfidf, nmf_tfidf_vectorizer
-    '''
-    def nmf_find_best_topic_number(self, data_preprocessed, topic_number_min=10, topic_number_max=40, topic_number_step=5, learning_decay_min=0.5, learning_decay_max=1, learning_decay_step=0.2):
-        n_topics = range(topic_number_min, topic_number_max, topic_number_step)
-        documents = data_preprocessed[0:self.precision].unique()
-        
-        nmf_tfidf, nmf_tfidf_vectorizer = self.nmf_init(documents)
-        
-        # Define Search Param
-        search_params = {'n_components': n_topics}#[10, 15, 20, 25, 30]}
-
-        # Init the Model
-        nmf = self.NMF(
-            random_state=1,
-            alpha=.1,
-            l1_ratio=.5,
-            init='nndsvd'
-        )
-        lda = self.LatentDirichletAllocation()
-
-        # Init Grid Search Class
-        model = self.GridSearchCV(nmf, param_grid=search_params)
-
-        # Do the Grid Search
-        model.fit(nmf_tfidf)
-        
-        # Best Model
-        best_nmf_model = model.best_estimator_
-
-        # Model Parameters
-        print("Best Model's Params: ", model.best_params_)
-
-        # Log Likelihood Score
-        print("Best Log Likelihood Score: ", model.best_score_)
-
-        # Perplexity
-        print("Model Perplexity: ", best_lda_model.perplexity(nmf_tfidf))
-        
-        # Get Log Likelyhoods from Grid Search Output
-        #n_topics = [10, 15, 20, 25, 30]
-        self.plt.figure(figsize=(12, 8))
-
-        for learning_decay in range(learning_decay_min, learning_decay_max, learning_decay_step):
-            log_likelyhoods = [round(gscore.mean_validation_score) for gscore in model.grid_scores_ if gscore.parameters['learning_decay']==learning_decay]
-            self.plt.plot(n_topics, log_likelyhoods, label=str(learning_decay))
-        
-        self.plt.title("Choosing Optimal LDA Model")
-        self.plt.xlabel("Num Topics")
-        self.plt.ylabel("Log Likelyhood Scores")
-        self.plt.legend(title='Learning decay', loc='best')
-        self.plt.show()
-    '''    
+    
     def nmf_find_topic_number(
         self, 
         data_preprocessed, 
@@ -958,13 +847,7 @@ class TagText:
             )
         ])  
         classifier.fit(X_train, y_train)
-        '''
-        print (len(X_test))
-        print (len(y_test))
-        print (y_test[0])
-        print (X_test)
-        '''
-
+		
         nb1, score1, nb5, score5 = self.scoring(X_test, y_test, classifier, lb, False, None)
 
         print("score 1 occurence {}".format(score1))
@@ -1008,22 +891,6 @@ class TagText:
         
         predicted_test = classifier.predict(X_test)
         return classifier, lb.classes_
-    '''
-    def evaluation_analysis(self, true_label, predicted): 
-        from sklearn import metrics
-        print ("accuracy: {}".format(metrics.accuracy_score(true_label, predicted)))
-        print ("f1 score macro: {}".format(metrics.f1_score(true_label, predicted, average='macro')  ) )  
-        print ("f1 score micro: {}".format(metrics.f1_score(true_label, predicted, average='micro') ))
-        print ("precision score: {}".format(metrics.precision_score(true_label, predicted, average='macro'))) 
-        print ("recall score: {}".format(metrics.recall_score(true_label, predicted, average='macro')) )
-        print ("hamming_loss: {}".format(metrics.hamming_loss(true_label, predicted)))
-        print ("classification_report: {}".format(metrics.classification_report(true_label, predicted)))
-        print ("jaccard_similarity_score: {}".format( metrics.jaccard_similarity_score(true_label, predicted)))
-        print ("log_loss: {}".format( metrics.log_loss(true_label, predicted)))
-        print ("zero_one_loss: {}".format(metrics.zero_one_loss(true_label, predicted)))
-        print ("AUC&ROC: {}".format(metrics.roc_auc_score(true_label, predicted)))
-        print ("matthews_corrcoef: {}".format( metrics.matthews_corrcoef(true_label, predicted) ))
-    '''    
         
     def supervised_prepare_tag_and_save(self, data_preprocessed, data_tag):
         '''
@@ -1101,6 +968,9 @@ class TagText:
         plt.show()
     
     def scoring(self, x_test, y_true, clf, lb, mode_supervise_with_lda = False, lda_model = None):
+		'''
+		score the predict model
+		'''
         import time
         debut_scoring = time.time()
         nb_tag_1 = 0.0
